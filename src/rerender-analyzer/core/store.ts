@@ -7,12 +7,14 @@ export interface RenderRecord {
   tips?: string[];
   parent?: string;
   timestamp: number;
+  duration: number; // ms, measured in render phase
 }
 
 const MAX_RECORDS = 1000;
 
 function createStore() {
   let records: RenderRecord[] = [];
+  const counts = new Map<string, number>();
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -24,8 +26,9 @@ function createStore() {
       const entry: RenderRecord = { ...record, timestamp: Date.now() };
       records.push(entry);
       if (records.length > MAX_RECORDS) {
-        records = records.slice(records.length - MAX_RECORDS);
+        records.splice(0, records.length - MAX_RECORDS);
       }
+      counts.set(record.name, (counts.get(record.name) ?? 0) + 1);
       notify();
     },
 
@@ -37,8 +40,15 @@ function createStore() {
       return records.slice(-n);
     },
 
+    getCounts(): Array<{ name: string; count: number }> {
+      return Array.from(counts.entries())
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count);
+    },
+
     clear(): void {
       records = [];
+      counts.clear();
       notify();
     },
 

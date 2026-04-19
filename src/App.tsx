@@ -59,9 +59,30 @@ function Container({ count, children }: ContainerProps) {
   );
 }
 
+// Искусственно медленный компонент — имитирует тяжёлые вычисления в render
+function SlowComponent({ value }: { value: number }) {
+  // Синхронная задержка ~25ms через busy-loop
+  const start = performance.now();
+  while (performance.now() - start < 25) { /* spin */ }
+
+  return (
+    <div style={{
+      marginTop: '8px',
+      padding: '8px 12px',
+      background: '#fff8e1',
+      border: '1px solid #ffe082',
+      borderRadius: '6px',
+      fontSize: '13px',
+    }}>
+      SlowComponent value: <strong>{value}</strong>
+    </div>
+  );
+}
+
 const TrackedLabel = track(Label);
 const TrackedUserCard = track(UserCard);
 const TrackedContainer = track(Container);
+const TrackedSlowComponent = track(SlowComponent);
 
 export default function App() {
   const [count, setCount] = useState(0);
@@ -117,6 +138,13 @@ export default function App() {
         </p>
         <TrackedUserCard user={{ name: 'Bob', role: 'Viewer' }} onAction={stableAction} />
       </TrackedContainer>
+
+      <div style={{ marginTop: '16px' }}>
+        <p style={{ margin: '0 0 4px', fontSize: '13px', color: '#777' }}>
+          🐢 SlowComponent — искусственная задержка ~25ms в render:
+        </p>
+        <TrackedSlowComponent value={count} />
+      </div>
 
       <RerenderOverlay />
     </div>

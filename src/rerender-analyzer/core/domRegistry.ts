@@ -1,4 +1,5 @@
 const registry = new Map<string, Set<HTMLElement>>();
+const EMPTY: ReadonlySet<HTMLElement> = new Set();
 
 export const domRegistry = {
   register(name: string, el: HTMLElement): void {
@@ -10,7 +11,7 @@ export const domRegistry = {
     registry.get(name)?.delete(el);
   },
 
-  get(name: string): Set<HTMLElement> {
-    return registry.get(name) ?? new Set();
+  get(name: string): ReadonlySet<HTMLElement> {
+    return registry.get(name) ?? EMPTY;
   },
 };

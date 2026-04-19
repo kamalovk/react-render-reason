@@ -40,9 +40,11 @@ export function analyzeRender(
     return { changes: [], reason: 'parent rerender', tips: [] };
   }
 
-  const tips = changes
-    .map((key) => getTipForKey(key, prev[key], next[key]))
-    .filter((t): t is string => t !== null);
+  const tips: string[] = [];
+  for (const key of changes) {
+    const tip = getTipForKey(key, prev[key], next[key]);
+    if (tip !== null) tips.push(tip);
+  }
 
   return { changes, reason: 'props changed', tips };
 }

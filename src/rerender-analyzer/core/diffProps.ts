@@ -6,11 +6,18 @@ export function diffProps(
   if (!prev || typeof prev !== 'object') return Object.keys(next ?? {});
   if (!next || typeof next !== 'object') return Object.keys(prev);
 
-  const allKeys = new Set([...Object.keys(prev), ...Object.keys(next)]);
   const changed: string[] = [];
 
-  for (const key of allKeys) {
+  // Check all prev keys for changes or removals
+  for (const key of Object.keys(prev)) {
     if (!Object.is(prev[key], next[key])) {
+      changed.push(key);
+    }
+  }
+
+  // Check for new keys added in next
+  for (const key of Object.keys(next)) {
+    if (!(key in prev)) {
       changed.push(key);
     }
   }
