@@ -5,7 +5,24 @@ import { analyzeRender, AnalyzeResult } from '../core/analyzeRender';
 import { store } from '../core/store';
 import { domRegistry } from '../core/domRegistry';
 
+function serialize(val: unknown): string {
+  if (val === undefined) return 'undefined';
+  if (val === null) return 'null';
+  if (typeof val === 'function') return `ƒ ${val.name || 'anonymous'}()`;
+  if (typeof val === 'object') {
+    try {
+      const str = JSON.stringify(val);
+      return str.length > 60 ? str.slice(0, 57) + '…' : str;
+    } catch {
+      return '[object]';
+    }
+  }
+  const str = String(val);
+  return str.length > 60 ? str.slice(0, 57) + '…' : str;
+}
+
 export function track<P extends object>(Component: ComponentType<P>): FC<P> {
+  if (process.env.NODE_ENV === 'production') return Component as unknown as FC<P>;
   const displayName =
     (Component as { displayName?: string }).displayName ||
     Component.name ||
@@ -19,12 +36,12 @@ export function track<P extends object>(Component: ComponentType<P>): FC<P> {
     // Profiler writes actualDuration here before useEffect fires
     const durationRef = useRef<number>(0);
 
-    const pendingRef = useRef<(AnalyzeResult & { parent: string | null }) | null>(null);
+    const pendingRef = useRef<(AnalyzeResult & { parent: string | null; prevProps: Record<string, unknown> | null }) | null>(null);
     const result = analyzeRender(
       prevProps === undefined ? null : (prevProps as Record<string, unknown>),
       props as Record<string, unknown>,
     );
-    pendingRef.current = { ...result, parent: parentName };
+    pendingRef.current = { ...result, parent: parentName, prevProps: prevProps === undefined ? null : (prevProps as Record<string, unknown>) };
 
     useEffect(() => {
       const el = wrapperRef.current;
@@ -39,13 +56,22 @@ export function track<P extends object>(Component: ComponentType<P>): FC<P> {
       if (!data) return;
       pendingRef.current = null;
 
-      const { changes, reason, tips, parent } = data;
+      const { changes, reason, tips, parent, prevProps: pp } = data;
       // durationRef.current is set by Profiler.onRender which fires before effects
       const duration = durationRef.current;
+
+      const nextP = props as Record<string, unknown>;
+      const propDiff: Record<string, { prev: string; next: string }> = {};
+      if (pp !== null) {
+        for (const key of changes) {
+          propDiff[key] = { prev: serialize(pp[key]), next: serialize(nextP[key]) };
+        }
+      }
 
       store.add({
         name: displayName,
         changes,
+        propDiff: changes.length ? propDiff : undefined,
         reason,
         tips: tips.length ? tips : undefined,
         parent: parent ?? undefined,

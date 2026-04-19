@@ -1,5 +1,7 @@
-import { useState, useCallback, CSSProperties, ReactNode } from 'react';
+﻿import { useState, useCallback, ReactNode } from 'react';
+import './App.css';
 import { track, RerenderOverlay } from './rerender-analyzer/index';
+
 
 interface LabelProps {
   text: string;
@@ -22,20 +24,9 @@ interface UserCardProps {
 
 function UserCard({ user, onAction }: UserCardProps) {
   return (
-    <div style={{
-      border: '1px solid #ccc',
-      borderRadius: '6px',
-      padding: '12px',
-      marginTop: '8px',
-      background: '#fafafa',
-    }}>
-      <strong>{user.name}</strong> — {user.role}
-      <button
-        onClick={onAction}
-        style={{ marginLeft: '12px', padding: '2px 8px', cursor: 'pointer' }}
-      >
-        action
-      </button>
+    <div className="demo-user-card">
+      <strong>{user.name}</strong> - {user.role}
+      <button className="demo-user-card__action" onClick={onAction}>action</button>
     </div>
   );
 }
@@ -47,102 +38,144 @@ interface ContainerProps {
 
 function Container({ count, children }: ContainerProps) {
   return (
-    <div style={{
-      border: '2px dashed #aaa',
-      borderRadius: '8px',
-      padding: '16px',
-      marginTop: '12px',
-    }}>
-      <p style={{ margin: '0 0 8px' }}>Container count: {count}</p>
+    <div className="demo-container">
+      <p className="demo-container__count">Container count: {count}</p>
       {children}
     </div>
   );
 }
 
-// Искусственно медленный компонент — имитирует тяжёлые вычисления в render
 function SlowComponent({ value }: { value: number }) {
-  // Синхронная задержка ~25ms через busy-loop
   const start = performance.now();
   while (performance.now() - start < 25) { /* spin */ }
-
   return (
-    <div style={{
-      marginTop: '8px',
-      padding: '8px 12px',
-      background: '#fff8e1',
-      border: '1px solid #ffe082',
-      borderRadius: '6px',
-      fontSize: '13px',
-    }}>
+    <div className="demo-slow">
       SlowComponent value: <strong>{value}</strong>
     </div>
   );
 }
 
+// в”Ђв”Ђв”Ђ Prop-diff demo components в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+
+interface CounterDisplayProps {
+  count: number;
+  label: string;
+}
+function CounterDisplay({ count, label }: CounterDisplayProps) {
+  return (
+    <div className="demo-counter">
+      {label}: <strong>{count}</strong>
+    </div>
+  );
+}
+
+interface ProfileCardProps {
+  profile: { name: string; age: number };
+  theme: string;
+}
+function ProfileCard({ profile, theme }: ProfileCardProps) {
+  return (
+    <div
+      className="demo-profile-card"
+      style={{
+        background: theme === 'dark' ? '#1a1a1a' : '#f5f5f5',
+        color: theme === 'dark' ? '#e0e0e0' : '#222',
+      }}
+    >
+      {profile.name}, {profile.age} y.o. - theme: {theme}
+    </div>
+  );
+}
+
+interface ActionButtonProps {
+  label: string;
+  onClick: () => void;
+}
+function ActionButton({ label, onClick }: ActionButtonProps) {
+  return (
+    <button className="demo-action-btn" onClick={onClick}>{label}</button>
+  );
+}
+
+// в”Ђв”Ђв”Ђ Tracked versions в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+
 const TrackedLabel = track(Label);
 const TrackedUserCard = track(UserCard);
 const TrackedContainer = track(Container);
 const TrackedSlowComponent = track(SlowComponent);
+const TrackedCounterDisplay = track(CounterDisplay);
+const TrackedProfileCard = track(ProfileCard);
+const TrackedActionButton = track(ActionButton);
+
+// в”Ђв”Ђв”Ђ App в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
 
 export default function App() {
   const [count, setCount] = useState(0);
   const [text, setText] = useState('Hello');
   const [color, setColor] = useState('#2196f3');
+  const [age, setAge] = useState(25);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   const unstableUser: User = { name: 'Alice', role: 'Admin' };
   const stableAction = useCallback(() => alert('Stable action!'), []);
   const unstableAction = () => alert('Unstable action!');
-
-  const demoBtn: CSSProperties = {
-    padding: '8px 14px',
-    cursor: 'pointer',
-    borderRadius: '6px',
-    border: '1px solid #ccc',
-    background: '#f5f5f5',
-    fontSize: '13px',
-  };
+  const unstableProfile = { name: 'Alice', age };
 
   return (
-    <div style={{ maxWidth: '600px', margin: '40px auto', fontFamily: 'sans-serif', padding: '0 20px' }}>
-      <h1>🔍 Rerender Analyzer — Demo</h1>
-      <p style={{ color: '#555' }}>
-        Нажимайте кнопки и смотрите overlay в правом верхнем углу (или в консоли).
+    <div className="demo-app">
+      <h1>Rerender Analyzer - Demo</h1>
+      <p className="demo-subtitle">
+        Click buttons and watch the overlay (or console). The Log tab shows <strong>prev &rarr; next</strong> for each changed prop.
       </p>
 
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '16px' }}>
-        <button onClick={() => setCount((c) => c + 1)} style={demoBtn}>
-          Increment count ({count})
-        </button>
-        <button onClick={() => setText((t) => (t === 'Hello' ? 'World' : 'Hello'))} style={demoBtn}>
-          Toggle text ("{text}")
-        </button>
-        <button onClick={() => setColor((c) => (c === '#2196f3' ? '#e91e63' : '#2196f3'))} style={demoBtn}>
-          Toggle color
-        </button>
+      {/* в”Ђв”Ђ Controls в”Ђв”Ђ */}
+      <div className="demo-controls">
+        <button className="demo-btn" onClick={() => setCount((c) => c + 1)}>count + ({count})</button>
+        <button className="demo-btn" onClick={() => setText((t) => (t === 'Hello' ? 'World' : 'Hello'))}>toggle text ("{text}")</button>
+        <button className="demo-btn" onClick={() => setColor((c) => (c === '#2196f3' ? '#e91e63' : '#2196f3'))}>toggle color</button>
+        <button className="demo-btn" onClick={() => setAge((a) => a + 1)}>age + ({age})</button>
+        <button className="demo-btn" onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}>toggle theme ({theme})</button>
       </div>
 
-      <div style={{ marginBottom: '12px' }}>
-        <code>&lt;TrackedLabel text color /&gt;</code>
-        <br />
+      {/* в”Ђв”Ђ 1. Primitive props в”Ђв”Ђ */}
+      <div className="demo-section">
+        <p className="demo-section-title">1. Primitive props - number &amp; string</p>
+        <p className="demo-hint">Click "count +" or "toggle text" to see exact prev &rarr; next values in the Log tab.</p>
+        <TrackedCounterDisplay count={count} label={text} />
         <TrackedLabel text={text} color={color} />
       </div>
 
-      <TrackedContainer count={count}>
-        <p style={{ margin: '0 0 4px', fontSize: '13px', color: '#777' }}>
-          ⚠ unstableUser — новый объект при каждом рендере:
+      {/* в”Ђв”Ђ 2. Object props в”Ђв”Ђ */}
+      <div className="demo-section">
+        <p className="demo-section-title">2. Object props - unstable vs stable reference</p>
+        <p className="demo-hint">
+          <strong>unstableProfile</strong> - new object on every render, even when data is identical.
+          Click "count +" and ProfileCard will think the profile changed.
         </p>
+        <TrackedProfileCard profile={unstableProfile} theme={theme} />
+        <p className="demo-hint-sm"><strong>unstableUser</strong> - same issue:</p>
         <TrackedUserCard user={unstableUser} onAction={unstableAction} />
+      </div>
 
-        <p style={{ margin: '8px 0 4px', fontSize: '13px', color: '#777' }}>
-          ✅ stableUser + stableAction (useCallback):
-        </p>
+      {/* в”Ђв”Ђ 3. Function props в”Ђв”Ђ */}
+      <div className="demo-section">
+        <p className="demo-section-title">3. Function props - stable (useCallback) vs recreated</p>
+        <p className="demo-hint"><strong>stableAction</strong> (useCallback) - same function reference, no extra re-renders.</p>
+        <TrackedActionButton label="Stable action" onClick={stableAction} />
+        <p className="demo-hint-sm"><strong>unstableAction</strong> - new function every render:</p>
+        <TrackedActionButton label="Unstable action" onClick={unstableAction} />
+      </div>
+
+      {/* в”Ђв”Ђ 4. Parent rerender propagation в”Ђв”Ђ */}
+      <TrackedContainer count={count}>
+        <p className="demo-hint">Components inside Container re-render on any parent state change.</p>
         <TrackedUserCard user={{ name: 'Bob', role: 'Viewer' }} onAction={stableAction} />
       </TrackedContainer>
 
-      <div style={{ marginTop: '16px' }}>
-        <p style={{ margin: '0 0 4px', fontSize: '13px', color: '#777' }}>
-          🐢 SlowComponent — искусственная задержка ~25ms в render:
-        </p>
+      {/* в”Ђв”Ђ 5. Slow render в”Ђв”Ђ */}
+      <div className="demo-section">
+        <p className="demo-section-title">5. Slow render (~25ms busy-loop)</p>
+        <p className="demo-hint">Click "count +" - SlowComponent will show a red duration badge in the overlay.</p>
         <TrackedSlowComponent value={count} />
       </div>
 

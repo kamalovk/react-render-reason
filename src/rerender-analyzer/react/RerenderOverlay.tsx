@@ -1,7 +1,33 @@
 import { useState, useEffect, useRef, CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { store } from '../core/store';
 import { domRegistry } from '../core/domRegistry';
-import { RenderRecord } from '../core/store';
+import { RenderRecord, PropDiffEntry } from '../core/store';
+import { RA_STYLES } from './RerenderOverlay.styles';
+
+// ─── Theme ───────────────────────────────────────────────────────────────────
+type Theme = 'dark' | 'light';
+
+type ThemeVars = Record<string, string>;
+
+function themeVars(theme: Theme): ThemeVars {
+  if (theme === 'dark') return {
+    '--ra-bg': '#1a1a1a', '--ra-surface': '#252525', '--ra-border': '#333',
+    '--ra-text': '#e0e0e0', '--ra-muted': '#888', '--ra-dim': '#555',
+    '--ra-input-bg': '#252525', '--ra-input-border': '#444',
+    '--ra-badge-bg': '#2a2a2a', '--ra-bar-bg': '#2a2a2a',
+    '--ra-shadow': 'rgba(0,0,0,0.6)',
+    '--ra-dur-ok-bg': '#1a3a1a', '--ra-dur-warn-bg': '#4a1a1a',
+  };
+  return {
+    '--ra-bg': '#f7f7f7', '--ra-surface': '#ebebeb', '--ra-border': '#d4d4d4',
+    '--ra-text': '#1c1c1c', '--ra-muted': '#666', '--ra-dim': '#aaa',
+    '--ra-input-bg': '#fff', '--ra-input-border': '#c8c8c8',
+    '--ra-badge-bg': '#e0e0e0', '--ra-bar-bg': '#e0e0e0',
+    '--ra-shadow': 'rgba(0,0,0,0.15)',
+    '--ra-dur-ok-bg': '#e8f5e9', '--ra-dur-warn-bg': '#ffebee',
+  };
+}
 
 function highlightComponent(name: string): void {
   for (const wrapper of domRegistry.get(name)) {
@@ -31,60 +57,78 @@ const REASON_COLOR: Record<string, string> = {
 
 function RecordRow({ record }: { record: RenderRecord }) {
   const reasonColor = REASON_COLOR[record.reason] ?? '#ffffff';
+  const slow = record.duration > 16;
 
   return (
     <div
-      style={{ borderBottom: '1px solid #333', padding: '6px 8px', fontSize: '12px', lineHeight: 1.5, cursor: 'default' }}
+      className="ra-record"
       onMouseEnter={() => highlightComponent(record.name)}
       onMouseLeave={() => unhighlightComponent(record.name)}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ color: '#e0e0e0', fontWeight: 'bold' }}>{record.name}</span>
-        <span style={{ color: reasonColor, fontSize: '11px', background: '#2a2a2a', borderRadius: '3px', padding: '1px 5px' }}>
-          {record.reason}
+      <div className="ra-record-header">
+        <span className="ra-record-name">{record.name}</span>
+        <span className="ra-badge" style={{ color: reasonColor }}>{record.reason}</span>
+        <span
+          className="ra-badge-dur"
+          style={{
+            background: slow ? 'var(--ra-dur-warn-bg)' : 'var(--ra-dur-ok-bg)',
+            color: slow ? '#ff5252' : '#43a047',
+            fontWeight: slow ? 'bold' : 'normal',
+          }}
+        >
+          {slow ? '⚠ ' : ''}{record.duration.toFixed(2)}ms
         </span>
-        <span style={{
-          fontSize: '11px',
-          borderRadius: '3px',
-          padding: '1px 5px',
-          background: record.duration > 16 ? '#4a1a1a' : '#1a2a1a',
-          color: record.duration > 16 ? '#ff5252' : '#69f0ae',
-          fontWeight: record.duration > 16 ? 'bold' : 'normal',
-        }}>
-          {record.duration > 16 ? '⚠ ' : ''}{record.duration.toFixed(2)}ms
-        </span>
-        {record.parent && (
-          <span style={{ color: '#607d8b', fontSize: '11px' }}>← {record.parent}</span>
-        )}
+        {record.parent && <span className="ra-record-parent">← {record.parent}</span>}
       </div>
       {record.changes.length > 0 && (
-        <div style={{ color: '#90caf9', marginTop: '2px' }}>props: {record.changes.join(', ')}</div>
+        <div className="ra-changes">
+          {record.propDiff
+            ? record.changes.map((key) => {
+                const entry: PropDiffEntry | undefined = record.propDiff![key];
+                return (
+                  <div key={key} className="ra-prop-row">
+                    <span className="ra-prop-key">{key}:</span>
+                    <span className="ra-prop-prev">{entry?.prev}</span>
+                    <span className="ra-prop-arrow">→</span>
+                    <span className="ra-prop-next">{entry?.next}</span>
+                  </div>
+                );
+              })
+            : <div className="ra-props-list">props: {record.changes.join(', ')}</div>
+          }
+        </div>
       )}
       {record.tips && record.tips.length > 0 && (
-        <div style={{ color: '#ffcc80', marginTop: '2px', fontStyle: 'italic' }}>
+        <div className="ra-tips">
           {record.tips.map((tip, i) => <div key={i}>💡 {tip}</div>)}
         </div>
       )}
-      <div style={{ color: '#555', fontSize: '10px', marginTop: '2px' }}>
-        {new Date(record.timestamp).toLocaleTimeString()}
-      </div>
+      <div className="ra-time">{new Date(record.timestamp).toLocaleTimeString()}</div>
     </div>
   );
 }
 
 export function RerenderOverlay() {
+  const [shadowRoot, setShadowRoot] = useState<ShadowRoot | null>(null);
   const [records, setRecords] = useState<RenderRecord[]>(() => store.getLast(50));
   const [counts, setCounts] = useState(() => store.getCounts());
-  const [tab, setTab] = useState<'log' | 'hot'>('log');
+  const [tab, setTab] = useState<'log' | 'hot' | 'settings'>('log');
+  const [filter, setFilter] = useState('');
   const [visible, setVisible] = useState(true);
   const [minimized, setMinimized] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [theme, setTheme] = useState<Theme>('dark');
   const [pos, setPos] = useState({ x: window.innerWidth - 380, y: 20 });
   const dragging = useRef(false);
   const offset = useRef({ x: 0, y: 0 });
   const rafRef = useRef<number | null>(null);
+  const pausedRef = useRef(false);
+
+  pausedRef.current = paused;
 
   useEffect(() => {
     return store.subscribe(() => {
+      if (pausedRef.current) return;
       if (rafRef.current !== null) return;
       rafRef.current = requestAnimationFrame(() => {
         setRecords(store.getLast(50));
@@ -92,6 +136,33 @@ export function RerenderOverlay() {
         rafRef.current = null;
       });
     });
+  }, []);
+
+  // When unpausing, immediately sync to latest store state
+  useEffect(() => {
+    if (!paused) {
+      setRecords(store.getLast(50));
+      setCounts(store.getCounts());
+    }
+  }, [paused]);
+
+  // Shadow DOM setup
+  useEffect(() => {
+    let host = document.getElementById('__ra-host__') as HTMLDivElement | null;
+    if (!host) {
+      host = document.createElement('div');
+      host.id = '__ra-host__';
+      document.body.appendChild(host);
+    }
+    let root = host.shadowRoot;
+    if (!root) {
+      root = host.attachShadow({ mode: 'open' });
+      const s = document.createElement('style');
+      s.textContent = RA_STYLES;
+      root.appendChild(s);
+    }
+    setShadowRoot(root);
+    return () => { document.getElementById('__ra-host__')?.remove(); };
   }, []);
 
   useEffect(() => {
@@ -108,119 +179,192 @@ export function RerenderOverlay() {
     };
   }, []);
 
-  if (!visible) {
-    return (
-      <button
-        onClick={() => setVisible(true)}
-        style={{
-          position: 'fixed', bottom: '16px', right: '16px', zIndex: 999999,
-          background: '#1e1e2e', color: '#cdd6f4', border: '1px solid #45475a',
-          borderRadius: '6px', padding: '6px 12px', cursor: 'pointer', fontSize: '12px',
-        }}
-      >
-        🔍 Rerender Analyzer
-      </button>
-    );
-  }
+  if (!shadowRoot) return null;
 
-  return (
-    <div style={{
-      position: 'fixed', top: pos.y, left: pos.x,
-      width: '360px', maxHeight: minimized ? 'auto' : '480px',
-      zIndex: 999999, background: '#1a1a1a', color: '#e0e0e0',
-      border: '1px solid #444', borderRadius: '8px',
-      fontFamily: 'monospace', boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
-      display: 'flex', flexDirection: 'column', userSelect: 'none',
-    }}>
+  const vars = themeVars(theme) as CSSProperties;
+
+  const content = !visible ? (
+    <button
+      className="ra-restore"
+      style={vars}
+      onClick={() => setVisible(true)}
+    >
+      🔍 Rerender Analyzer
+    </button>
+  ) : (
+    <div
+      className="ra-overlay"
+      style={{ top: pos.y, left: pos.x, maxHeight: minimized ? 'auto' : '480px', ...vars }}
+    >
+      {/* ── Header ── */}
       <div
-        style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 10px', background: '#252525',
-          borderRadius: '8px 8px 0 0', cursor: 'grab', borderBottom: '1px solid #333',
-        }}
+        className="ra-header"
         onMouseDown={(e) => {
           dragging.current = true;
           offset.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
         }}
       >
-        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#ccc' }}>
-          🔍 Rerender Analyzer ({records.length})
+        <span className="ra-title" style={{ color: paused ? '#ff9800' : undefined }}>
+          {paused ? '⏸ ' : '🔍 '}Rerender Analyzer ({records.length})
         </span>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button onClick={() => store.clear()} title="Clear" style={btnStyle}>🗑</button>
-          <button onClick={() => setMinimized((m) => !m)} style={btnStyle}>
-            {minimized ? '▲' : '▼'}
+        <div className="ra-toolbar">
+          <button
+            className="ra-btn"
+            onClick={() => setPaused((p) => !p)}
+            title={paused ? 'Resume recording' : 'Pause recording'}
+            style={{ color: paused ? '#ff9800' : undefined }}
+          >
+            {paused
+              ? <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><polygon points="3,2 14,8 3,14"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><rect x="2" y="2" width="4" height="12"/><rect x="10" y="2" width="4" height="12"/></svg>
+            }
           </button>
-          <button onClick={() => setVisible(false)} title="Hide" style={btnStyle}>✕</button>
+          <div className="ra-sep" />
+          <button
+            className="ra-btn"
+            title="Export all records as JSON"
+            onClick={() => {
+              const data = JSON.stringify(store.getAll(), null, 2);
+              const blob = new Blob([data], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `rerender-analyzer-${Date.now()}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1v9M4 7l4 4 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+              <path d="M2 12v2h12v-2" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
+          </button>
+          <button className="ra-btn" onClick={() => store.clear()} title="Clear all records">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3 4h10M6 4V2h4v2M5 4l.5 9h5L11 4" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
+          <div className="ra-sep" />
+          <button className="ra-btn" onClick={() => setMinimized((m) => !m)} title={minimized ? 'Expand' : 'Minimize'}>
+            {minimized
+              ? <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 10l5-5 5 5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+              : <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M3 6l5 5 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+            }
+          </button>
+          <button className="ra-btn" onClick={() => setVisible(false)} title="Hide overlay">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M3 3l10 10M13 3L3 13" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* ── Tabs ── */}
       {!minimized && (
-        <div style={{ display: 'flex', borderBottom: '1px solid #333' }}>
+        <div className="ra-tabs">
           <button
+            className="ra-tab"
             onClick={() => setTab('log')}
-            style={{ ...tabStyle, borderBottom: tab === 'log' ? '2px solid #cdd6f4' : '2px solid transparent', color: tab === 'log' ? '#cdd6f4' : '#666' }}
-          >
-            Log
-          </button>
+            style={{ borderBottomColor: tab === 'log' ? '#cdd6f4' : 'transparent', color: tab === 'log' ? '#cdd6f4' : undefined }}
+          >Log</button>
           <button
+            className="ra-tab"
             onClick={() => setTab('hot')}
-            style={{ ...tabStyle, borderBottom: tab === 'hot' ? '2px solid #ff9800' : '2px solid transparent', color: tab === 'hot' ? '#ff9800' : '#666' }}
-          >
-            🔥 Hot
-          </button>
+            style={{ borderBottomColor: tab === 'hot' ? '#ff9800' : 'transparent', color: tab === 'hot' ? '#ff9800' : undefined }}
+          >🔥 Hot</button>
+          <button
+            className="ra-tab"
+            onClick={() => setTab('settings')}
+            style={{ borderBottomColor: tab === 'settings' ? 'var(--ra-text)' : 'transparent', color: tab === 'settings' ? 'var(--ra-text)' : undefined }}
+          >⚙️ Settings</button>
         </div>
       )}
+
+      {/* ── Filter ── */}
+      {!minimized && tab !== 'settings' && (
+        <div className="ra-filter">
+          <input
+            className="ra-filter-input"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter by name…"
+          />
+        </div>
+      )}
+
+      {/* ── Log tab ── */}
       {!minimized && tab === 'log' && (
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {records.length === 0
-            ? <div style={{ padding: '20px', color: '#555', textAlign: 'center', fontSize: '12px' }}>No renders recorded yet. Wrap components with track().</div>
-            : [...records].reverse().map((r, i) => <RecordRow key={i} record={r} />)
-          }
+        <div className="ra-list">
+          {(() => {
+            const filtered = filter
+              ? [...records].reverse().filter((r) => r.name.toLowerCase().includes(filter.toLowerCase()))
+              : [...records].reverse();
+            return filtered.length === 0
+              ? <div className="ra-empty">{records.length === 0 ? 'No renders recorded yet. Wrap components with track().' : 'No matches.'}</div>
+              : filtered.map((r, i) => <RecordRow key={i} record={r} />);
+          })()}
         </div>
       )}
+
+      {/* ── Hot tab ── */}
       {!minimized && tab === 'hot' && (
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {counts.length === 0
-            ? <div style={{ padding: '20px', color: '#555', textAlign: 'center', fontSize: '12px' }}>No renders recorded yet.</div>
-            : counts.map(({ name, count }) => {
-                const max = counts[0].count;
-                const pct = Math.round((count / max) * 100);
-                return (
+        <div className="ra-list">
+          {(() => {
+            const filtered = filter
+              ? counts.filter(({ name }) => name.toLowerCase().includes(filter.toLowerCase()))
+              : counts;
+            if (filtered.length === 0) {
+              return <div className="ra-empty">{counts.length === 0 ? 'No renders recorded yet.' : 'No matches.'}</div>;
+            }
+            const max = counts[0].count;
+            return filtered.map(({ name, count }) => (
+              <div
+                key={name}
+                className="ra-hot-row"
+                onMouseEnter={() => highlightComponent(name)}
+                onMouseLeave={() => unhighlightComponent(name)}
+              >
+                <div className="ra-hot-row-header">
+                  <span className="ra-hot-name">{name}</span>
+                  <span className="ra-hot-count" style={{ color: count > 20 ? '#ff5252' : count > 5 ? '#ff9800' : '#43a047' }}>
+                    × {count}
+                  </span>
+                </div>
+                <div className="ra-bar-track">
                   <div
-                    key={name}
-                    style={{ padding: '6px 8px', borderBottom: '1px solid #333', cursor: 'default' }}
-                    onMouseEnter={() => highlightComponent(name)}
-                    onMouseLeave={() => unhighlightComponent(name)}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                      <span style={{ color: '#e0e0e0', fontSize: '12px', fontWeight: 'bold' }}>{name}</span>
-                      <span style={{ color: count > 20 ? '#ff5252' : count > 5 ? '#ff9800' : '#69f0ae', fontSize: '12px', fontWeight: 'bold' }}>
-                        × {count}
-                      </span>
-                    </div>
-                    <div style={{ height: '3px', background: '#2a2a2a', borderRadius: '2px' }}>
-                      <div style={{
-                        height: '100%', borderRadius: '2px', width: `${pct}%`,
-                        background: count > 20 ? '#ff5252' : count > 5 ? '#ff9800' : '#69f0ae',
-                      }} />
-                    </div>
-                  </div>
-                );
-              })
-          }
+                    className="ra-bar-fill"
+                    style={{
+                      width: `${Math.round((count / max) * 100)}%`,
+                      background: count > 20 ? '#ff5252' : count > 5 ? '#ff9800' : '#43a047',
+                    }}
+                  />
+                </div>
+              </div>
+            ));
+          })()}
+        </div>
+      )}
+
+      {/* ── Settings tab ── */}
+      {!minimized && tab === 'settings' && (
+        <div className="ra-settings">
+          <div className="ra-settings-label">Appearance</div>
+          <div className="ra-theme-btns">
+            <button
+              className="ra-theme-btn"
+              onClick={() => setTheme('dark')}
+              style={theme === 'dark' ? { border: '2px solid #cdd6f4', background: '#1e1e2e', color: '#cdd6f4' } : undefined}
+            >🌙 Dark</button>
+            <button
+              className="ra-theme-btn"
+              onClick={() => setTheme('light')}
+              style={theme === 'light' ? { border: '2px solid #ff9800', background: '#fff8ee', color: '#e65100' } : undefined}
+            >☀️ Light</button>
+          </div>
         </div>
       )}
     </div>
   );
+
+  return createPortal(content, shadowRoot);
 }
-
-const btnStyle: CSSProperties = {
-  background: 'transparent', border: 'none', color: '#888',
-  cursor: 'pointer', fontSize: '14px', padding: '2px 4px', lineHeight: 1,
-};
-
-const tabStyle: CSSProperties = {
-  flex: 1, background: 'transparent', border: 'none',
-  cursor: 'pointer', fontSize: '11px', padding: '5px 0',
-  fontFamily: 'monospace', transition: 'color 0.15s',
-};

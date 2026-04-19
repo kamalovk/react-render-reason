@@ -1,13 +1,19 @@
 import { RenderReason } from './analyzeRender';
 
+export interface PropDiffEntry {
+  prev: string;
+  next: string;
+}
+
 export interface RenderRecord {
   name: string;
   changes: string[];
+  propDiff?: Record<string, PropDiffEntry>;
   reason: RenderReason;
   tips?: string[];
   parent?: string;
   timestamp: number;
-  duration: number; // ms, measured in render phase
+  duration: number;
 }
 
 const MAX_RECORDS = 1000;

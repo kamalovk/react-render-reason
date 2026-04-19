@@ -1,38 +1,111 @@
-.App {
-  text-align: center;
+/* ── Demo App layout ─────────────────────────────────────── */
+.demo-app {
+  max-width: 640px;
+  margin: 40px auto;
+  font-family: sans-serif;
+  padding: 0 20px;
 }
 
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
+.demo-subtitle {
+  color: #555;
+  margin-top: 0;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
-}
-
-.App-header {
-  background-color: #282c34;
-  min-height: 100vh;
+.demo-controls {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
 }
 
-.App-link {
-  color: #61dafb;
+.demo-btn {
+  padding: 8px 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #f5f5f5;
+  font-size: 13px;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+/* ── Section ─────────────────────────────────────────────── */
+.demo-section {
+  margin-top: 24px;
+  padding: 14px 16px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.demo-section-title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #444;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 6px;
+}
+
+.demo-hint {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #777;
+}
+
+.demo-hint-sm {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: #777;
+}
+
+/* ── Component styles ────────────────────────────────────── */
+.demo-counter {
+  font-size: 14px;
+}
+
+.demo-user-card {
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 12px;
+  margin-top: 8px;
+  background: #fff;
+}
+
+.demo-user-card__action {
+  margin-left: 12px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.demo-container {
+  border: 2px dashed #aaa;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.demo-container__count {
+  margin: 0 0 8px;
+}
+
+.demo-slow {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.demo-profile-card {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-top: 6px;
+  border: 1px solid #ddd;
+}
+
+.demo-action-btn {
+  margin-top: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
 }
